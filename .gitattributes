@@ -1,0 +1,16 @@
+# Store everything with LF in the repository.
+#
+# This matters for build_ipa.sh: a shell script checked out with CRLF line
+# endings fails on macOS and Linux runners with "\r: command not found".
+# Git still handles CRLF on Windows checkouts for editors that need it.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.swift text eol=lf
+*.metal text eol=lf
+
+*.ipa  binary
+*.png  binary
+*.jpg  binary
+*.icns binary
