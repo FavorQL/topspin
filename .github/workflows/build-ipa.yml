@@ -1,0 +1,76 @@
+name: Build unsigned IPA
+
+# Produces Topspin-unsigned.ipa on a macOS runner, with no Apple Developer
+# account required. Download the artifact and sign it locally with Sideloadly
+# or AltStore using your own Apple ID.
+#
+# Runner notes (as of October 2026):
+#   macos-26  -> arm64, stable, ships Xcode 26.x   <- default here
+#   xcode-27  -> arm64, PUBLIC PREVIEW, Xcode 27   <- switch to this if you
+#               want the very newest toolchain; preview images carry no SLA
+#
+# Standard runners are free and unlimited on public repositories.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build-ipa:
+    name: Build Topspin
+    runs-on: macos-26
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Check selected Xcode and iPhone SDK
+        run: |
+          set -euo pipefail
+          xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Build for a real device, unsigned
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Topspin.xcodeproj \
+            -scheme Topspin \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package the .app into an .ipa
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Build/Products/Release-iphoneos/Topspin.app"
+          test -d "$APP_PATH"
+          echo "Building IPA from $APP_PATH"
+          rm -rf Payload Topspin-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry Topspin-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh Topspin-unsigned.ipa
+          unzip -l Topspin-unsigned.ipa | head -20
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Topspin-unsigned-ipa
+          path: Topspin-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
